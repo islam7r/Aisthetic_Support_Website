@@ -1,1 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Aisthetic — AI Photo Editor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg:        #07050f;
+      --bg2:       #0d0a1a;
+      --primary:   #a855f7;
+      --secondary: #06b6d4;
+      --text:      #f1f0f5;
+      --muted:     #7c7a8a;
+      --border:    rgba(168,85,247,0.18);
+      --glass:     rgba(255,255,255,0.04);
+    }
 
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+    }
+
+    /* ── NOISE TEXTURE OVERLAY ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.6;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 48px;
+      background: rgba(7,5,15,0.75);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 22px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.3px;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 36px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 400;
+      transition: color 0.2s;
+      letter-spacing: 0.2px;
+    }
+
+    .nav-links a:hover { color: var(--text); }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 120px 24px 80px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Mesh blobs */
+    .hero::before, .hero::after {
+      content: '';
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(120px);
+      pointer-events: none;
+    }
+
+    .hero::before {
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(168,85,247,0.22) 0%, transparent 70%);
+      top: -100px; left: -100px;
+      animation: blobDrift 12s ease-in-out infinite alternate;
+    }
+
+    .hero::after {
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(6,182,212,0.18) 0%, transparent 70%);
+      bottom: -80px; right: -80px;
+      animation: blobDrift 15s ease-in-out infinite alternate-reverse;
+    }
+
+    @keyframes blobDrift {
+      from { transform: translate(0, 0) scale(1); }
+      to   { transform: translate(60px, 40px) scale(1.1); }
+    }
+
+    .hero-eyebrow {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--primary);
+      margin-bottom: 20px;
+      opacity: 0;
+      animation: fadeUp 0.8s ease forwards 0.2s;
+    }
+
+    .hero-title {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(52px, 9vw, 110px);
+      font-weight: 900;
+      line-height: 0.95;
+      letter-spacing: -3px;
+      margin-bottom: 28px;
+      opacity: 0;
+      animation: fadeUp 0.9s ease forwards 0.4s;
+    }
+
+    .hero-title span {
+      font-style: italic;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-sub {
+      font-size: clamp(16px, 2vw, 19px);
+      font-weight: 300;
+      color: rgba(241,240,245,0.65);
+      max-width: 520px;
+      line-height: 1.65;
+      margin-bottom: 44px;
+      opacity: 0;
+      animation: fadeUp 1s ease forwards 0.6s;
+    }
+
+    .hero-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 36px;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      color: #fff;
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 500;
+      border-radius: 999px;
+      box-shadow: 0 0 40px rgba(168,85,247,0.4);
+      transition: box-shadow 0.3s, transform 0.2s;
+      opacity: 0;
+      animation: fadeUp 1s ease forwards 0.8s;
+      cursor: pointer;
+      border: none;
+    }
+
+    .hero-cta:hover {
+      box-shadow: 0 0 60px rgba(168,85,247,0.6);
+      transform: translateY(-2px);
+    }
+
+    .hero-cta-note {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 14px;
+      opacity: 0;
+      animation: fadeUp 1s ease forwards 1s;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(28px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── SECTION BASE ── */
+    section {
+      position: relative;
+      z-index: 1;
+      padding: 100px 48px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .section-label {
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--primary);
+      font-weight: 500;
+      margin-bottom: 16px;
+    }
+
+    .section-title {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(32px, 5vw, 54px);
+      font-weight: 700;
+      line-height: 1.1;
+      letter-spacing: -1px;
+      margin-bottom: 16px;
+    }
+
+    .section-title em {
+      font-style: italic;
+      color: var(--primary);
+    }
+
+    .section-sub {
+      font-size: 16px;
+      color: var(--muted);
+      font-weight: 300;
+      max-width: 520px;
+      line-height: 1.7;
+      margin-bottom: 56px;
+    }
+
+    /* ── FEATURES ── */
+    #features { padding-top: 60px; }
+
+    .features-intro {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 80px;
+      align-items: start;
+      margin-bottom: 64px;
+    }
+
+    .style-flow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding-top: 8px;
+    }
+
+    .style-tag {
+      font-size: 12px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: rgba(241,240,245,0.65);
+      background: var(--glass);
+      font-weight: 400;
+      letter-spacing: 0.2px;
+      transition: border-color 0.2s, color 0.2s;
+    }
+
+    .style-tag:hover {
+      border-color: var(--primary);
+      color: var(--text);
+    }
+
+    .style-tag.accent {
+      border-color: rgba(168,85,247,0.4);
+      color: rgba(168,85,247,0.9);
+      background: rgba(168,85,247,0.06);
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    .feature-card {
+      background: var(--glass);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px 24px;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+
+    .feature-card:hover {
+      border-color: rgba(168,85,247,0.4);
+      transform: translateY(-4px);
+    }
+
+    .feature-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(168,85,247,0.2), rgba(6,182,212,0.2));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      margin-bottom: 16px;
+    }
+
+    .feature-card h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      letter-spacing: -0.2px;
+    }
+
+    .feature-card p {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+      font-weight: 300;
+    }
+
+    /* ── DIVIDER ── */
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border), transparent);
+      margin: 0 48px;
+    }
+
+    /* ── PRO ── */
+    .pro-card {
+      background: linear-gradient(135deg, rgba(168,85,247,0.12), rgba(6,182,212,0.08));
+      border: 1px solid rgba(168,85,247,0.3);
+      border-radius: 28px;
+      padding: 56px 48px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      align-items: center;
+    }
+
+    .pro-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--primary);
+      border: 1px solid rgba(168,85,247,0.4);
+      padding: 4px 12px;
+      border-radius: 999px;
+      margin-bottom: 20px;
+    }
+
+    .pro-card h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(28px, 4vw, 44px);
+      font-weight: 700;
+      line-height: 1.1;
+      letter-spacing: -1px;
+      margin-bottom: 16px;
+    }
+
+    .pro-card p {
+      color: var(--muted);
+      font-size: 15px;
+      font-weight: 300;
+      line-height: 1.7;
+      margin-bottom: 32px;
+    }
+
+    .pro-perks {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .pro-perks li {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 14px;
+      color: rgba(241,240,245,0.85);
+    }
+
+    .pro-perks li::before {
+      content: '✦';
+      color: var(--primary);
+      font-size: 10px;
+      flex-shrink: 0;
+    }
+
+    /* ── LEGAL SECTIONS ── */
+    .legal-section {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 80px 48px;
+    }
+
+    .legal-section h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(32px, 5vw, 48px);
+      font-weight: 700;
+      letter-spacing: -1px;
+      margin-bottom: 8px;
+    }
+
+    .legal-date {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 48px;
+    }
+
+    .legal-section h2 {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 36px 0 12px;
+      color: var(--text);
+    }
+
+    .legal-section p, .legal-section li {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.8;
+      font-weight: 300;
+    }
+
+    .legal-section ul {
+      padding-left: 20px;
+      margin: 8px 0;
+    }
+
+    .legal-section a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    /* ── SUPPORT ── */
+    #support {
+      text-align: center;
+      padding: 80px 48px;
+    }
+
+    .support-card {
+      max-width: 520px;
+      margin: 0 auto;
+      background: var(--glass);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 48px 40px;
+    }
+
+    .support-card h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 12px;
+    }
+
+    .support-card p {
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 300;
+      line-height: 1.7;
+      margin-bottom: 28px;
+    }
+
+    .support-email {
+      display: inline-block;
+      padding: 14px 32px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .support-email:hover {
+      border-color: var(--primary);
+      background: rgba(168,85,247,0.08);
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 40px 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .footer-logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 18px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 28px;
+      list-style: none;
+    }
+
+    .footer-links a {
+      font-size: 13px;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover { color: var(--text); }
+
+    .footer-copy {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* ── PAGE SWITCHER ── */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      nav { padding: 16px 20px; }
+      .nav-links { display: none; }
+      section { padding: 60px 20px; }
+      .features-intro { grid-template-columns: 1fr; gap: 40px; }
+      .features-grid { grid-template-columns: 1fr; }
+      .pro-card { grid-template-columns: 1fr; padding: 36px 24px; }
+      .legal-section { padding: 60px 20px; }
+      footer { flex-direction: column; gap: 20px; text-align: center; padding: 32px 20px; }
+      .footer-links { flex-wrap: wrap; justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── NAV ── -->
+<nav>
+  <div class="nav-logo">✦ Aisthetic</div>
+  <ul class="nav-links">
+    <li><a href="#" onclick="showPage('home')">Home</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#" onclick="showPage('privacy')">Privacy</a></li>
+    <li><a href="#" onclick="showPage('terms')">Terms</a></li>
+    <li><a href="#support">Support</a></li>
+  </ul>
+</nav>
+
+<!-- ══════════════════════════════════════════
+     HOME PAGE
+══════════════════════════════════════════ -->
+<div id="page-home" class="page active">
+
+  <!-- HERO -->
+  <div class="hero">
+    <p class="hero-eyebrow">AI Photo Editor for iOS</p>
+    <h1 class="hero-title">Your photos,<br/><span>reimagined.</span></h1>
+    <p class="hero-sub">
+      Point. Choose a style. Watch your photo transform into something you've never seen before — powered by real AI, not a filter.
+    </p>
+    <a class="hero-cta" href="https://apps.apple.com/app/id6756195816">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+      </svg>
+      Download on the App Store
+    </a>
+    <p class="hero-cta-note">Coming soon to Android</p>
+  </div>
+
+  <!-- FEATURES -->
+  <section id="features">
+    <div class="features-intro">
+      <div>
+        <p class="section-label">What it does</p>
+        <h2 class="section-title">Real AI.<br/><em>Real results.</em></h2>
+        <p class="section-sub">
+          Pick any photo from your camera roll, choose a style, and let the AI do what no filter ever could. Every transformation is unique — no two results are the same.
+        </p>
+      </div>
+      <div>
+        <p class="section-label" style="margin-bottom:14px">A world of styles</p>
+        <p style="font-size:14px;color:var(--muted);font-weight:300;line-height:1.7;margin-bottom:20px">
+          From oil paintings to cyberpunk neon, golden hour cinema to watercolor dreams — every style reimagines your photo as something you've never seen before.
+        </p>
+        <div class="style-flow">
+          <span class="style-tag accent">Cinematic Golden Hour</span>
+          <span class="style-tag">Watercolor Dream</span>
+          <span class="style-tag accent">Cyberpunk Neon</span>
+          <span class="style-tag">Oil Painting</span>
+          <span class="style-tag">Fantasy World</span>
+          <span class="style-tag accent">Retro Vaporwave</span>
+          <span class="style-tag">Studio Portrait</span>
+          <span class="style-tag">Anime</span>
+          <span class="style-tag accent">Dark Academia</span>
+          <span class="style-tag">Impressionist</span>
+          <span class="style-tag">Infrared</span>
+          <span class="style-tag accent">Brutalist</span>
+          <span class="style-tag">Moody Forest</span>
+          <span class="style-tag">Tilt Shift</span>
+          <span class="style-tag accent">& much more</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">✦</div>
+        <h3>AI Transformation</h3>
+        <p>Pick a photo, choose a style. The AI processes millions of pixels and returns something genuinely new.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⬚</div>
+        <h3>Before & After</h3>
+        <p>See exactly what changed. Compare the original and transformed image side by side.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">↓</div>
+        <h3>Save & Share</h3>
+        <p>Download directly to Photos or share straight to Instagram Stories without leaving the app.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">◷</div>
+        <h3>Generation History</h3>
+        <p>Every transformation you've made is saved automatically. Go back, revisit, download again.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">◈</div>
+        <h3>Saved Styles</h3>
+        <p>Bookmark the styles you love and find them instantly the next time you create.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">◎</div>
+        <h3>New Styles Regularly</h3>
+        <p>New artistic styles are added through the app — no update needed. Always something new to try.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- PRO -->
+  <section id="pro">
+    <div class="pro-card">
+      <div>
+        <span class="pro-badge">Pro Plan</span>
+        <h2>Create without limits.</h2>
+        <p>
+          More generations, no watermark, no ads. Pro gives you everything you need to make AI photo editing a real part of your creative workflow.
+        </p>
+        <a class="hero-cta" href="https://apps.apple.com/app/id6756195816" style="font-size:14px;padding:14px 28px;">
+          Get Pro
+        </a>
+      </div>
+      <ul class="pro-perks">
+        <li>20 AI generations every month</li>
+        <li>No watermark on any export</li>
+        <li>No ads — ever</li>
+        <li>Try Again unlimited times</li>
+        <li>Priority access to new styles</li>
+        <li>Cancel anytime from App Store settings</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- SUPPORT -->
+  <section id="support">
+    <div class="support-card">
+      <h2>Need help?</h2>
+      <p>
+        Have a question, found something broken, or want to suggest a feature? We read every message.
+      </p>
+      <a class="support-email" href="mailto:aistheticsupport@gmail.com">aistheticsupport@gmail.com</a>
+    </div>
+  </section>
+
+</div>
+<!-- /page-home -->
+
+<!-- ══════════════════════════════════════════
+     PRIVACY POLICY PAGE
+══════════════════════════════════════════ -->
+<div id="page-privacy" class="page">
+  <div class="legal-section">
+    <h1>Privacy Policy</h1>
+    <p class="legal-date">Last updated: May 2025</p>
+
+    <p>Aisthetic ("we", "us", or "our") is committed to protecting your privacy. This policy explains what information we collect, how we use it, and your rights.</p>
+
+    <h2>Information We Collect</h2>
+    <ul>
+      <li><strong>Account data:</strong> When you register, we collect your name and email address.</li>
+      <li><strong>Photos you upload:</strong> Images you submit for transformation are processed by our AI and then deleted from our servers. We do not store your photos permanently.</li>
+      <li><strong>Usage data:</strong> We collect anonymous usage statistics (number of generations, styles used) to improve the app. This data is never linked to your identity.</li>
+      <li><strong>Device token:</strong> We store your FCM push notification token to deliver in-app notifications. You can disable this in iOS Settings.</li>
+    </ul>
+
+    <h2>How We Use Your Information</h2>
+    <ul>
+      <li>To provide and improve the Aisthetic service</li>
+      <li>To send you relevant push notifications (you can opt out anytime)</li>
+      <li>To respond to your support requests</li>
+      <li>To detect and prevent abuse</li>
+    </ul>
+
+    <h2>Third-Party Services</h2>
+    <p>Aisthetic uses the following third-party services, each with their own privacy policies:</p>
+    <ul>
+      <li><strong>Firebase (Google)</strong> — authentication, database, and push notifications</li>
+      <li><strong>RevenueCat</strong> — subscription and purchase management</li>
+      <li><strong>Google AdMob</strong> — advertising (Free plan only)</li>
+    </ul>
+
+    <h2>Data Retention</h2>
+    <p>We retain your account data for as long as your account is active. You can request deletion of your account and all associated data at any time from the Profile screen in the app.</p>
+
+    <h2>Children's Privacy</h2>
+    <p>Aisthetic is not directed at children under 13. We do not knowingly collect personal information from children under 13.</p>
+
+    <h2>Your Rights</h2>
+    <p>You have the right to access, correct, or delete your personal data. To exercise these rights, contact us at <a href="mailto:aistheticsupport@gmail.com">aistheticsupport@gmail.com</a>.</p>
+
+    <h2>Changes to This Policy</h2>
+    <p>We may update this policy from time to time. We will notify you of significant changes through the app or by email.</p>
+
+    <h2>Contact</h2>
+    <p>Questions about this policy? Email us at <a href="mailto:aistheticsupport@gmail.com">aistheticsupport@gmail.com</a>.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     TERMS OF USE PAGE
+══════════════════════════════════════════ -->
+<div id="page-terms" class="page">
+  <div class="legal-section">
+    <h1>Terms of Use</h1>
+    <p class="legal-date">Last updated: May 2025</p>
+
+    <p>By downloading or using Aisthetic, you agree to these terms. Please read them carefully.</p>
+
+    <h2>1. Using the App</h2>
+    <p>Aisthetic is a personal, non-commercial AI photo editing tool. You may use it for personal creative purposes. You may not use it to generate content that is illegal, hateful, or violates the rights of others.</p>
+
+    <h2>2. Your Content</h2>
+    <p>You own the photos you upload. By submitting a photo for transformation, you grant us a temporary, limited license to process it through our AI. We do not claim ownership of your photos or the results.</p>
+
+    <h2>3. Prohibited Use</h2>
+    <ul>
+      <li>Using the app to generate illegal, harmful, or offensive content</li>
+      <li>Attempting to reverse engineer or copy the app</li>
+      <li>Using automated tools to access the service</li>
+      <li>Sharing your account with others</li>
+    </ul>
+
+    <h2>4. Subscriptions & Purchases</h2>
+    <p>Pro subscriptions are billed through the App Store. Subscriptions automatically renew unless cancelled at least 24 hours before the end of the current period. You can manage or cancel your subscription in iOS Settings → Apple ID → Subscriptions.</p>
+
+    <h2>5. Disclaimer</h2>
+    <p>Aisthetic is provided "as is" without warranty of any kind. AI-generated results may vary. We do not guarantee any specific output quality.</p>
+
+    <h2>6. Limitation of Liability</h2>
+    <p>To the maximum extent permitted by law, we are not liable for any indirect, incidental, or consequential damages arising from your use of the app.</p>
+
+    <h2>7. Changes to Terms</h2>
+    <p>We may update these terms at any time. Continued use of the app after changes constitutes acceptance of the new terms.</p>
+
+    <h2>8. Contact</h2>
+    <p>Questions about these terms? Email us at <a href="mailto:aistheticsupport@gmail.com">aistheticsupport@gmail.com</a>.</p>
+  </div>
+</div>
+
+<!-- ── FOOTER (shown on all pages) ── -->
+<footer>
+  <div class="footer-logo">✦ Aisthetic</div>
+  <ul class="footer-links">
+    <li><a href="#" onclick="showPage('home')">Home</a></li>
+    <li><a href="#" onclick="showPage('privacy')">Privacy Policy</a></li>
+    <li><a href="#" onclick="showPage('terms')">Terms of Use</a></li>
+    <li><a href="mailto:aistheticsupport@gmail.com">Contact</a></li>
+  </ul>
+  <p class="footer-copy">© 2025 Aisthetic. All rights reserved.</p>
+</footer>
+
+<script>
+  function showPage(name) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + name).classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // Scroll reveal
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.style.opacity = '1';
+        entry.target.style.transform = 'translateY(0)';
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.feature-card, .pro-card, .support-card').forEach(el => {
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(24px)';
+    el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+    observer.observe(el);
+  });
+</script>
+</body>
+</html>
